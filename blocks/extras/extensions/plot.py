@@ -83,38 +83,44 @@ class Plot(SimpleExtension):
     def __init__(self, document, channels, open_browser=False,
                  start_server=False, server_url=None, **kwargs):
         if not BOKEH_AVAILABLE:
-            raise ImportError
+            print('Bokeh uninstalled!')
+            self.BOKEH_AVAILABLE = False
+            
+        try:
+            if server_url is None:
+                server_url = config.bokeh_server
 
-        if server_url is None:
-            server_url = config.bokeh_server
+            self.plots = {}
+            self.start_server = start_server
+            self.document = document
+            self.server_url = server_url
+            self._startserver()
 
-        self.plots = {}
-        self.start_server = start_server
-        self.document = document
-        self.server_url = server_url
-        self._startserver()
+            # Create figures for each group of channels
+            self.p = []
+            self.p_indices = {}
+            for i, channel_set in enumerate(channels):
+                channel_set_opts = {}
+                if isinstance(channel_set, dict):
+                    channel_set_opts = channel_set
+                    channel_set = channel_set_opts.pop('channels')
+                channel_set_opts.setdefault('title',
+                                            '{} #{}'.format(document, i + 1))
+                self.p.append(figure(**channel_set_opts))
+                for channel in channel_set:
+                    self.p_indices[channel] = i
+            if open_browser:
+                show()
 
-        # Create figures for each group of channels
-        self.p = []
-        self.p_indices = {}
-        for i, channel_set in enumerate(channels):
-            channel_set_opts = {}
-            if isinstance(channel_set, dict):
-                channel_set_opts = channel_set
-                channel_set = channel_set_opts.pop('channels')
-            channel_set_opts.setdefault('title',
-                                        '{} #{}'.format(document, i + 1))
-            self.p.append(figure(**channel_set_opts))
-            for channel in channel_set:
-                self.p_indices[channel] = i
-        if open_browser:
-            show()
-
-        kwargs.setdefault('after_epoch', True)
-        kwargs.setdefault("before_first_epoch", True)
-        super(Plot, self).__init__(**kwargs)
+            kwargs.setdefault('after_epoch', True)
+            kwargs.setdefault("before_first_epoch", True)
+            super(Plot, self).__init__(**kwargs)
+        except Exception:
+            print(traceback.format_exc())
 
     def do(self, which_callback, *args):
+        if not self.BOKEH_AVAILABLE:
+            return
         try:
             log = self.main_loop.log
             iteration = log.status['iterations_done']
